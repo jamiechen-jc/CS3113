@@ -10,3 +10,4 @@ Coursework for CS3113 Intro to Game Programming
 * Homework #5: TBD
 * Final Project: TBD
 
+All projects are written in C++ and graphically rendered using OpenGL.

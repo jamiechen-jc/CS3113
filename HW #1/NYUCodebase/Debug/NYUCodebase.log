@@ -1,3 +1,6 @@
-﻿  main.cpp
+﻿  ShaderProgram.cpp
+  main.cpp
+  Generating Code...
 c:\users\jc769\documents\github\cs3113\hw #1\nyucodebase\main.cpp(47): warning C4715: 'canMove': not all control paths return a value
+  LINK : C:\Users\jc769\Documents\GitHub\CS3113\HW #1\Debug\NYUCodebase.exe not found or not built by the last incremental link; performing full link
   NYUCodebase.vcxproj -> C:\Users\jc769\Documents\GitHub\CS3113\HW #1\Debug\NYUCodebase.exe

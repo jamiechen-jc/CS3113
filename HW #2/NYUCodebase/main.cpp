@@ -26,11 +26,22 @@
 #endif
 
 SDL_Window* displayWindow;
+ShaderProgram program;
+glm::mat4 projectionMatrix;
+glm::mat4 modelMatrix;
+glm::mat4 viewMatrix;
 
 const float leftBorder = -1.777f;
 const float rightBorder = 1.777f;
 const float topBorder = 1.0f;
 const float bottomBorder = -1.0f;
+const float borderHeight = 0.1f;
+
+float p1_pos[] = { -1.6f, 0.0f, 1.0f };
+float p2_pos[] = { 1.6f, 0.0f, 1.0f };
+float p1_color[] = { 0.0f, 1.0f, 0.0f, 1.0f };
+float p2_color[] = { 0.0f, 0.0f, 1.0f, 1.0f };
+float COLOR_WHITE[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
 
 GLuint LoadTexture(const char *filePath) {
 	int w, h, comp;
@@ -53,8 +64,8 @@ GLuint LoadTexture(const char *filePath) {
 
 // Paddle entity with its own member values
 struct paddle {
-	float height = 0.4f;
-	float width = 0.2f;
+	float height = 0.3f;
+	float width = 0.1f;
 	float vertices[12] = { -width / 2, height / 2, -width / 2, -height / 2, width / 2, height / 2, width / 2, -height / 2, -width / 2, -height / 2, width / 2, height / 2 };
 	float speed = 0.0f;
 	float position[3];
@@ -92,7 +103,7 @@ struct ball {
 };
 
 // Draws the paddle at its current position
-void drawPaddle(ShaderProgram& program, glm::mat4& modelMatrix, paddle& paddle) {
+void drawPaddle(glm::mat4& modelMatrix, paddle& paddle) {
 	modelMatrix = glm::mat4(1.0f);
 	modelMatrix = glm::translate(modelMatrix, glm::vec3(paddle.position[0], paddle.position[1], paddle.position[2]));
 	program.SetModelMatrix(modelMatrix);
@@ -105,7 +116,7 @@ void drawPaddle(ShaderProgram& program, glm::mat4& modelMatrix, paddle& paddle) 
 }
 
 // Draws the ball at its current position
-void drawBall(ShaderProgram& program, glm::mat4& modelMatrix, ball& ball) {
+void drawBall(glm::mat4& modelMatrix, ball& ball) {
 	modelMatrix = glm::mat4(1.0f);
 	modelMatrix = glm::translate(modelMatrix, glm::vec3(ball.position[0], ball.position[1], ball.position[2]));
 	program.SetModelMatrix(modelMatrix);
@@ -118,9 +129,10 @@ void drawBall(ShaderProgram& program, glm::mat4& modelMatrix, ball& ball) {
 }
 
 // Draws the background of the game
-void drawBackground(ShaderProgram& program, glm::mat4 modelMatrix, float color[]) {
-	float solid_line_vertices[12] = { -1.777f, 0.05f, -1.777f, -0.05f, 1.777f, 0.05f, 1.777f, -0.05f, -1.777f, -0.05f, 1.777f, 0.05f };
-	float dotted_line_vertices[12] = { -0.05f, 0.05f, -0.05f, -0.05f, 0.05f, 0.05f, 0.05f, -0.05f, -0.05f, -0.05f, 0.05f, 0.05f };
+void drawBackground(glm::mat4 modelMatrix, float color[]) {
+	float vh = borderHeight / 2;
+	float solid_line_vertices[12] = { -1.777f, vh, -1.777f, -vh, 1.777f, vh, 1.777f, -vh, -1.777f, -vh, 1.777f, vh };
+	float dotted_line_vertices[12] = { -vh, vh, -vh, -vh, vh, vh, vh, -vh, -vh, -vh, vh, vh };
 	program.SetColor(color[0], color[1], color[2], color[3]);
 
 	// Drawing top border
@@ -161,21 +173,9 @@ void drawBackground(ShaderProgram& program, glm::mat4 modelMatrix, float color[]
 	}
 }
 
-// Helper function for checking collisions between the ball and the vertical side of paddle
-bool collidesWithVerticalEdge(paddle& p, ball& b) {
-	if (abs(b.position[0] - p.position[0]) <= b.length / 2 + p.width / 2 &&
-		b.position[1] - b.length / 2 <= p.position[1] + p.height / 2 &&
-		b.position[1] + b.length / 2 >= p.position[1] - p.height / 2)
-		return true;
-	return false;
-}
-
-// Helper function for checking collisions between the ball and the horizontal side of paddle
-bool collidesWithHorizontalEdge(paddle& p, ball& b) {
-	if (abs(b.position[0] - p.position[0]) <= (b.length / 2 + p.width / 2) && abs(b.position[1] - p.position[1]) <= (b.length / 2 + p.height / 2)) {
-		return true;
-	}
-	return false;
+// Helper functin for pdadle and ball collisions
+bool collidesWithEdge(paddle& p, ball& b) {
+	return abs(b.position[0] - p.position[0]) <= (b.length / 2 + p.width / 2) && abs(b.position[1] - p.position[1]) <= (b.length / 2 + p.height / 2);
 }
 
 // Helper function for checking collisions between the ball and top/bottom border
@@ -185,39 +185,15 @@ bool collidesWithBorder(ball& b) {
 
 // Updates the velocity of the ball on collisions between the ball and paddles/borders
 void checkBallCollision(paddle& p1, paddle& p2, ball& b) {	
-	if (collidesWithVerticalEdge(p1, b) && b.velocity_x < 0)
+	if (collidesWithEdge(p1, b) && b.velocity_x < 0)
 		b.velocity_x = 0.75f;
-	else if (collidesWithVerticalEdge(p2, b) && b.velocity_x > 0)
+	else if (collidesWithEdge(p2, b) && b.velocity_x > 0)
 		b.velocity_x = -0.75f;
-
-	if ((collidesWithBorder(b)) && b.velocity_y > 0)
+	
+	if ((collidesWithBorder(b) || collidesWithEdge(p1, b) && b.position[1] < p1.position[1] || collidesWithEdge(p2, b) && b.position[1] < p2.position[1]) && b.velocity_y > 0)
 		b.velocity_y = -0.75f;
-	else if ((collidesWithBorder(b)) && b.velocity_y < 0)
+	else if ((collidesWithBorder(b) || collidesWithEdge(p1, b) && b.position[1] > p1.position[1] || collidesWithEdge(p2, b) && b.position[1] < p2.position[1]) && b.velocity_y < 0)
 		b.velocity_y = 0.75f;
-
-	/*
-	if (b.position[1] > top)
-		b.position[1] = top - 0.15f;
-	if (b.position[1] < bottom)
-		b.position[1] = bottom + 0.15f;
-	
-	if (abs(b.position[0] - p1.position[0]) < 0.1f && abs(b.position[1] - p1.position[1]) < 0.3f) {
-		if (b.position[1] - p1.position[1] > 0)
-			b.position[0] = p1.position[0] + 0.1f;
-		else
-			b.position[0] = p1.position[0] - 0.1f;
-	}
-	
-	if (b.position[0] < p1.position[0] + 0.1f && abs(p1.position[1] - b.position[1]) <= 0.3f)
-		b.position[0] = p1.position[0] + 1.0f;
-	
-	//if (b.position[0] <= p1.position[0] + 0.1f && abs(p1.position[1] - b.position[1]) <= 0.3f || b.position[0] >= p2.position[0] - 0.1f && abs(p2.position[1] - b.position[1]) <= 0.3f)
-	if ((b.position[0] + b.length / 2 <= p1.position[0] + p1.width / 2) && (abs(p1.position[1] - b.position[1]) <= b.length / 2 + p1.height / 2))
-		b.velocity_x = -b.velocity_x; //*1.005f;
-
-	if (b.position[1] >= top - 0.15f || b.position[1] <= bottom + 0.15f || abs(b.position[0] - p1.position[0]) <= 0.1f && abs(p1.position[1] - b.position[1]) <= 0.3f || abs(b.position[0] - p2.position[0]) <= 0.1f && abs(p2.position[1] - b.position[1]) <= 0.3f)
-		b.velocity_y = -b.velocity_y; //*1.005f;
-	*/
 }
 
 // Updates the positions of all entities using their current positions and their velocities
@@ -247,35 +223,36 @@ void setup() {
 #endif
 
 	glViewport(0, 0, 1280, 720);
+	program.Load(RESOURCE_FOLDER"vertex.glsl", RESOURCE_FOLDER"fragment.glsl");
 	srand(SDL_GetTicks() % 100);
+
+	glm::mat4 modelMatrix = glm::mat4(1.0f);
+	glm::mat4 viewMatrix = glm::mat4(1.0f);
+
+	projectionMatrix = glm::ortho(-1.777f, 1.777f, -1.0f, 1.0f, -1.0f, 1.0f);
+	program.SetProjectionMatrix(projectionMatrix);
+	program.SetViewMatrix(viewMatrix);
 }
 
 // Renders the entities and background of the game
-void render(ShaderProgram& prog, glm::mat4 mm, paddle& p1, paddle& p2, ball& b, float p1Won, float p2Won) {
-	if (p1Won)
-		drawBackground(prog, mm, p1.color);
-	else if (p2Won)
-		drawBackground(prog, mm, p2.color);
-	else {
-		float COLOR_WHITE[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
-		drawBackground(prog, mm, COLOR_WHITE);
+void render(glm::mat4 mm, paddle& p1, paddle& p2, ball& b, float p1Won, float p2Won) {
+	if (p1Won) {
+		drawBackground(mm, p1.color);
 	}
-	drawPaddle(prog, mm, p1);
-	drawPaddle(prog, mm, p2);
-	drawBall(prog, mm, b);
+	else if (p2Won) {
+		drawBackground(mm, p2.color);
+	}
+	else {
+		drawBackground(mm, COLOR_WHITE);
+	}
+	drawPaddle(mm, p1);
+	drawPaddle(mm, p2);
+	drawBall(mm, b);
 }
 
 int main(int argc, char *argv[])
 {
 	setup();
-
-	ShaderProgram program;
-	program.Load(RESOURCE_FOLDER"vertex.glsl", RESOURCE_FOLDER"fragment.glsl");	
-
-	float p1_pos[] = { -1.6f, 0.0f, 1.0f };
-	float p2_pos[] = { 1.6f, 0.0f, 1.0f };
-	float p1_color[] = { 0.0f, 1.0f, 0.0f, 1.0f };
-	float p2_color[] = { 0.0f, 0.0f, 1.0f, 1.0f };
 	paddle playerOne(p1_pos, p1_color);
 	paddle playerTwo(p2_pos, p2_color);
 	bool p1Win = false;
@@ -283,14 +260,6 @@ int main(int argc, char *argv[])
 	ball theBall = ball();
 
 	float lastFrameTicks = 0.0f;
-
-	glm::mat4 projectionMatrix;
-	glm::mat4 modelMatrix = glm::mat4(1.0f);
-	glm::mat4 viewMatrix = glm::mat4(1.0f);
-	
-	projectionMatrix = glm::ortho(-1.777f, 1.777f, -1.0f, 1.0f, -1.0f, 1.0f);
-	program.SetProjectionMatrix(projectionMatrix);
-	program.SetViewMatrix(viewMatrix);
 
     SDL_Event event;
     bool done = false;
@@ -307,9 +276,9 @@ int main(int argc, char *argv[])
 
 		checkBallCollision(playerOne, playerTwo, theBall);
 		
-		if (theBall.position[0] <= leftBorder + 0.05f)
+		if (theBall.position[0] <= leftBorder + borderHeight / 2)
 			p2Win = true;
-		else if (theBall.position[0] >= rightBorder - 0.05f)
+		else if (theBall.position[0] >= rightBorder - (borderHeight / 2))
 			p1Win = true;
 
 		if (!p1Win && !p2Win) {
@@ -319,18 +288,18 @@ int main(int argc, char *argv[])
 		const Uint8 *keys = SDL_GetKeyboardState(NULL);	
 	
 		// Press W and S to move left paddle
-		if (keys[SDL_SCANCODE_W] && playerOne.position[1] < topBorder - (playerOne.height / 2 + 0.1f) && !p1Win && !p2Win)
+		if (keys[SDL_SCANCODE_W] && playerOne.position[1] < topBorder - (playerOne.height / 2 + borderHeight) && !p1Win && !p2Win)
 			playerOne.speed = 1.0f;
-		else if (keys[SDL_SCANCODE_S] && playerOne.position[1] > bottomBorder + (playerTwo.height / 2 + 0.1f) && !p1Win && !p2Win)
+		else if (keys[SDL_SCANCODE_S] && playerOne.position[1] > bottomBorder + (playerTwo.height / 2 + borderHeight) && !p1Win && !p2Win)
 			playerOne.speed = -1.0f;
 		else {
 			playerOne.speed = 0.0f;
 		}
 
 		// Press UP and DOWN to move right paddle
-		if (keys[SDL_SCANCODE_UP] && playerTwo.position[1] < topBorder - (playerOne.height / 2 + 0.1f) && !p1Win && !p2Win)
+		if (keys[SDL_SCANCODE_UP] && playerTwo.position[1] < topBorder - (playerOne.height / 2 + borderHeight) && !p1Win && !p2Win)
 			playerTwo.speed = 1.0f;
-		else if (keys[SDL_SCANCODE_DOWN] && playerTwo.position[1] > bottomBorder + (playerTwo.height / 2 + 0.1f) && !p1Win && !p2Win)
+		else if (keys[SDL_SCANCODE_DOWN] && playerTwo.position[1] > bottomBorder + (playerTwo.height / 2 + borderHeight) && !p1Win && !p2Win)
 			playerTwo.speed = -1.0f;
 		else {
 			playerTwo.speed = 0.0f;
@@ -346,7 +315,7 @@ int main(int argc, char *argv[])
 		}
 
 		glClear(GL_COLOR_BUFFER_BIT);
-		render(program, modelMatrix, playerOne, playerTwo, theBall, p1Win, p2Win);
+		render(modelMatrix, playerOne, playerTwo, theBall, p1Win, p2Win);
 		SDL_GL_SwapWindow(displayWindow);
     }
 

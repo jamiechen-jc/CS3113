@@ -9,7 +9,6 @@ public:
 	SheetSprite();
 	SheetSprite(unsigned int, float, float, float ,float, float);
 
-	//void Draw(ShaderProgram& program);
 	void Draw(ShaderProgram& program, int index, int scountx, int scounty);
 
 	float size;

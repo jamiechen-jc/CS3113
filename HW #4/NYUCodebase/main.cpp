@@ -74,7 +74,7 @@ glm::vec2 friction = glm::vec2(0.1f, 0.1f);
 GLuint fontTexture, playerTexture, enemyTexture, tileMapTexture;
 SheetSprite playerSprite, enemySprite;
 
-enum GameMode { STATE_MAIN_MENU, STATE_GAME_LEVEL };
+enum GameMode { STATE_MAIN_MENU, STATE_GAME_LEVEL, STATE_GAME_WIN };
 GameMode mode;
 GameState state;
 
@@ -83,6 +83,8 @@ unsigned int** mapData;
 unsigned int levelData[LEVEL_HEIGHT][LEVEL_WIDTH];
 
 Entity tiles[LEVEL_HEIGHT][LEVEL_WIDTH];
+
+int numCaught = 0;
 
 float lerp(float v0, float v1, float t) {
 	return (1.0f - t) * v0 + t * v1;
@@ -98,7 +100,12 @@ void placeEntity(string type, float x, float y) {
 		Entity* enemy = new Entity(ENTITY_ENEMY, false, enemySprite);
 		enemy->position.x = x;
 		enemy->position.y = y;
-		enemy->acceleration.x = 0.5f;
+		/*
+		if (rand() % 2)
+			enemy->acceleration.x = -0.5f;
+		else 
+			enemy->acceleration.x = 0.5f;
+		*/
 		state.enemies.push_back(enemy);
 	}
 }
@@ -311,7 +318,7 @@ void DrawTileMap(ShaderProgram& program, int tileMapTexture) {
 	glVertexAttribPointer(program.texCoordAttribute, 2, GL_FLOAT, false, 0, texCoordData.data());
 	glEnableVertexAttribArray(program.texCoordAttribute);
 
-	glDrawArrays(GL_TRIANGLES, 0, LEVEL_HEIGHT * LEVEL_WIDTH * 6);
+	glDrawArrays(GL_TRIANGLES, 0, vertexData.size() / 2);
 
 	glDisableVertexAttribArray(program.positionAttribute);
 	glDisableVertexAttribArray(program.texCoordAttribute);
@@ -343,12 +350,26 @@ void RenderMainMenu() {
 	DrawText(texturedProgram, fontTexture, "Press SPACE to play", 0.1f, 0.0f);
 }
 
+void RenderGameWin() {
+	modelMatrix = glm::mat4(1.0f);
+	modelMatrix = glm::translate(modelMatrix, glm::vec3(-0.25f, 0.5f, 1.0f));
+	texturedProgram.SetModelMatrix(modelMatrix);
+	DrawText(texturedProgram, fontTexture, "YOU", 0.2f, 0.0f);
+
+	modelMatrix = glm::mat4(1.0f);
+	modelMatrix = glm::translate(modelMatrix, glm::vec3(-0.85f, 0.25f, 1.0f));
+	texturedProgram.SetModelMatrix(modelMatrix);
+	DrawText(texturedProgram, fontTexture, "WIN", 0.2f, 0.0f);
+}
+
 void RenderGameLevel(GameState& state) {
 	DrawTileMap(texturedProgram, tileMapTexture);
 	state.player->Draw(texturedProgram, idleAnimation[currentIndex[0]]);
+	
 	viewMatrix = glm::mat4(1.0f);
 	viewMatrix = glm::translate(viewMatrix, glm::vec3(-state.player->position.x, -state.player->position.y, -state.player->position.z));
 	texturedProgram.SetViewMatrix(viewMatrix);
+	
 	for (int i = 0; i < MAX_ENEMIES; ++i) {
 		if (!state.enemies[i]->isCaught)
 			state.enemies[i]->Draw(texturedProgram, idleAnimation[currentIndex[0]]);
@@ -368,42 +389,80 @@ void UpdateGameLevel(GameState& state, float elapsed) {
 	state.player->velocity.x += state.player->acceleration.x * elapsed;
 	state.player->velocity.y += state.player->acceleration.y * elapsed;
 	
+	state.player->position.y += state.player->velocity.y * elapsed;
+	state.player->position.x += state.player->velocity.x * elapsed;
+
 	int gridX = -1;
 	int gridY = -1;
-	worldToTileCoordinates(state.player->position.x, state.player->position.y, &gridX, &gridY);
+	
+	if (state.player->velocity.y < 0)
+		worldToTileCoordinates(state.player->position.x, state.player->position.y - state.player->size.y / 2, &gridX, &gridY);
+	else if (state.player->velocity.y > 0)
+		worldToTileCoordinates(state.player->position.x, state.player->position.y + state.player->size.y / 2, &gridX, &gridY);
 
-	if (gridX > -1 && gridX < 22 && gridY > -1 && gridY << 16) {
-		state.player->position.y += state.player->velocity.y * elapsed;
+	if (gridY > -1 && gridY < 16) {
 		if (mapData[gridY][gridX] != 0) {
-			state.player->collisionY(tiles[gridY][gridX], -TILE_SIZE * gridY);
-		}
-
-		state.player->position.x += state.player->velocity.x * elapsed;
-		if (mapData[gridY][gridX] != 0) {
-			state.player->collisionX(tiles[gridY][gridX], TILE_SIZE * gridX);
+			if (state.player->velocity.y < 0)
+				state.player->collisionY(tiles[gridY][gridX], -TILE_SIZE * gridY);
+			else if (state.player->velocity.y > 0)
+				state.player->collisionY(tiles[gridY][gridX], (-TILE_SIZE * gridY) - TILE_SIZE);
 		}
 	}
 
-	int numCaught = 0;
+	if (state.player->velocity.x < 0)
+		worldToTileCoordinates(state.player->position.x - state.player->size.x / 2, state.player->position.y, &gridX, &gridY);
+	else if (state.player->velocity.x > 0)
+		worldToTileCoordinates(state.player->position.x  + state.player->size.y / 2, state.player->position.y, &gridX, &gridY);
+
+	if (gridX > -1 && gridX < 22) {
+		if (mapData[gridY][gridX] != 0) {
+			if (state.player->velocity.x < 0)
+				state.player->collisionX(tiles[gridY][gridX], (TILE_SIZE * gridX) + TILE_SIZE);
+			else if (state.player->velocity.x > 0)
+				state.player->collisionX(tiles[gridY][gridX], TILE_SIZE * gridX);
+		}
+	}
+
 	for (Entity* enemy : state.enemies) {
 		if (!enemy->isCaught) {
 			enemy->velocity.x += enemy->acceleration.x * elapsed;
 			enemy->velocity.y += enemy->acceleration.y * elapsed;
 
+			enemy->position.y += enemy->velocity.y * elapsed;
+			enemy->position.x += enemy->velocity.x * elapsed;
+
 			int gridX = -1;
 			int gridY = -1;
-			worldToTileCoordinates(enemy->position.x, enemy->position.y, &gridX, &gridY);
 
-			if (gridX > -1 && gridX < 22 && gridY > -1 && gridY << 16) {
-				enemy->position.y += enemy->velocity.y * elapsed;
+			if (enemy->velocity.y < 0)
+				worldToTileCoordinates(enemy->position.x, enemy->position.y - enemy->size.y / 2, &gridX, &gridY);
+			else if (enemy->velocity.y > 0)
+				worldToTileCoordinates(enemy->position.x, enemy->position.y + enemy->size.y / 2, &gridX, &gridY);
+
+			if (gridY > -1 && gridY < 16) {
 				if (mapData[gridY][gridX] != 0) {
-					enemy->collisionY(tiles[gridY][gridX], -TILE_SIZE * gridY);
+					if (enemy->velocity.y < 0)
+						enemy->collisionY(tiles[gridY][gridX], -TILE_SIZE * gridY);
+					else if (state.player->velocity.y > 0)
+						enemy->collisionY(tiles[gridY][gridX], (-TILE_SIZE * gridY) - TILE_SIZE);
 				}
+			}
 
-				enemy->position.x += state.player->velocity.x * elapsed;
+			if (enemy->velocity.x < 0)
+				worldToTileCoordinates(enemy->position.x - enemy->size.x / 2, enemy->position.y, &gridX, &gridY);
+			else if (enemy->velocity.x > 0)
+				worldToTileCoordinates(enemy->position.x + enemy->size.y / 2, enemy->position.y, &gridX, &gridY);
+
+			if (gridX > -1 && gridX < 22) {
 				if (mapData[gridY][gridX] != 0) {
-					if (enemy->collisionX(tiles[gridY][gridX], TILE_SIZE * gridX))
-						enemy->velocity.x = -enemy->velocity.x;
+					if (enemy->velocity.x < 0) {
+						enemy->collisionX(tiles[gridY][gridX], (TILE_SIZE * gridX) + TILE_SIZE);
+					}
+					else if (enemy->velocity.x > 0) {
+						enemy->collisionX(tiles[gridY][gridX], TILE_SIZE * gridX);
+					}
+					if (enemy->collidedLeft || enemy->collidedRight)
+						enemy->velocity.x = -enemy->velocity.x * 0.9f;
 				}
 			}
 			if (enemy->collidesWith(*state.player)) {
@@ -414,12 +473,13 @@ void UpdateGameLevel(GameState& state, float elapsed) {
 	}
 
 	if (numCaught == 3) {
-		worldToTileCoordinates(state.player->position.x, state.player->position.y, &gridX, &gridY);
-		if (gridX > -1 && gridX < 22 && gridY > -1 && gridY << 16) {
-			if (mapData[gridY][gridX] == 29) {
+		mode = STATE_GAME_WIN;
+		/*worldToTileCoordinates(state.player->position.x, state.player->position.y, &gridX, &gridY);
+		if (gridX > -1 && gridX < 22 && gridY > -1 && gridY < 16) {
+			if (mapData[gridY+1][gridX+1] == 30 || mapData[gridY+1][gridX] == 30 || mapData[gridY][gridX+1] == 30) {
 				mode = STATE_MAIN_MENU;
 			}
-		}
+		}*/
 	}
 }
 
@@ -432,24 +492,35 @@ void ProcessMainMenuInput() {
 				mode = STATE_GAME_LEVEL;
 }
 
+void ProcesGameWinInput() {
+	while (SDL_PollEvent(&event))
+		if (event.type == SDL_QUIT || event.type == SDL_WINDOWEVENT_CLOSE)
+			done = true;
+		else if (event.type == SDL_KEYDOWN)
+			if (event.key.keysym.scancode == SDL_SCANCODE_SPACE)
+				mode = STATE_MAIN_MENU;
+}
+
 void ProcessGameLevelInput(GameState& state) {
 	while (SDL_PollEvent(&event)) {
 		if (event.type == SDL_QUIT || event.type == SDL_WINDOWEVENT_CLOSE)
 			done = true;
-		else if (event.type == SDL_KEYDOWN) {
-			if (event.key.keysym.scancode == SDL_SCANCODE_SPACE && state.player->collidedBottom) {
-				state.player->velocity.y = 1.0f;
-			}
-		}
 	}
 	const Uint8 *keys = SDL_GetKeyboardState(NULL);
 
 	state.player->acceleration.x = 0.0f;
+	//state.player->acceleration.y = -0.981f;
 
-	if (keys[SDL_SCANCODE_LEFT] && state.player->position.x > 0.0f)
+	if (keys[SDL_SCANCODE_SPACE] && state.player->collidedBottom) {
+		state.player->velocity.y = 1.5f;
+	}
+
+	if (keys[SDL_SCANCODE_LEFT] && state.player->position.x > -TILE_SIZE * LEVEL_WIDTH)
 		state.player->acceleration.x = -0.5f;
-	else if (keys[SDL_SCANCODE_RIGHT] && state.player->position.x < TILE_SIZE * LEVEL_WIDTH)
+	if (keys[SDL_SCANCODE_RIGHT] && state.player->position.x < TILE_SIZE * LEVEL_WIDTH)
 		state.player->acceleration.x = 0.5f;
+	if (keys[SDL_SCANCODE_DOWN])
+		state.player->velocity.y = -1.5f;
 }
 
 void Render() {
@@ -462,6 +533,9 @@ void Render() {
 		break;
 	case STATE_GAME_LEVEL:
 		RenderGameLevel(state);
+		break;
+	case STATE_GAME_WIN:
+		RenderGameWin();
 		break;
 	}
 	SDL_GL_SwapWindow(displayWindow);
@@ -480,6 +554,9 @@ void ProcessInput() {
 	switch (mode) {
 	case STATE_MAIN_MENU:
 		ProcessMainMenuInput();
+		break;
+	case STATE_GAME_WIN:
+		ProcesGameWinInput();
 		break;
 	case STATE_GAME_LEVEL:
 		ProcessGameLevelInput(state);
@@ -510,7 +587,7 @@ void Setup() {
 	
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
+	
 	mode = STATE_MAIN_MENU;
 	fontTexture = LoadTexture(RESOURCE_FOLDER"assets/font.png");
 	playerTexture = LoadTexture(RESOURCE_FOLDER"assets/vita.png");

@@ -9,7 +9,7 @@ public:
 	SheetSprite();
 	SheetSprite(GLuint texID, int spriteCountX, int spriteCountY);
 
-	void Draw(ShaderProgram& program, int index);
+	void Draw(ShaderProgram& program, int index, glm::vec3 size);
 
 	GLuint textureID;
 	int spriteCountX;

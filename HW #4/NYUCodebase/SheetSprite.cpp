@@ -7,7 +7,7 @@ SheetSprite::SheetSprite(GLuint texID, int spriteCountX, int spriteCountY) : tex
 	spriteWidth = 1.0f / (float) spriteCountY;
 }
 
-void SheetSprite::Draw(ShaderProgram &program, int index) {
+void SheetSprite::Draw(ShaderProgram &program, int index, glm::vec3 size) {
 	glBindTexture(GL_TEXTURE_2D, textureID);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
@@ -26,15 +26,13 @@ void SheetSprite::Draw(ShaderProgram &program, int index) {
 		u + spriteWidth, v + spriteHeight
 	};
 
-	float size = 0.25f;
-
 	float vertices[] = {
-		-0.5f * size, -0.5f * size,
-		0.5f * size, 0.5f * size,
-		-0.5f * size, 0.5f * size,
-		0.5f * size, 0.5f * size,
-		-0.5f * size, -0.5f * size,
-		0.5f * size, -0.5f * size
+		-0.5f * size.x, -0.5f * size.x,
+		0.5f * size.x, 0.5f * size.x,
+		-0.5f * size.x, 0.5f * size.x,
+		0.5f * size.x, 0.5f * size.x,
+		-0.5f * size.x, -0.5f * size.x,
+		0.5f * size.x, -0.5f * size.x
 	};
 	
 	glVertexAttribPointer(program.positionAttribute, 2, GL_FLOAT, false, 0, vertices);

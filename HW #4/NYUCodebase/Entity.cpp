@@ -15,7 +15,7 @@ Entity::Entity(EntityType entityType, bool isStatic, SheetSprite sprite) : entit
 	position = glm::vec3(0.0f, 0.0f, 0.0f);
 	velocity = glm::vec3(0.0f, 0.0f, 0.0f);
 	acceleration = glm::vec3(0.0f, -0.981f, 0.0f);
-	size = glm::vec3(0.2f, 0.2f, 0.2f);
+	size = glm::vec3(0.25f, 0.25f, 0.25f);
 	isCaught = false;
 	resetCollisionFlags();
 };
@@ -24,7 +24,7 @@ void Entity::Draw(ShaderProgram& program, int index) {
 	glm::mat4 modelMatrix = glm::mat4(1.0f);
 	modelMatrix = glm::translate(modelMatrix, position);
 	program.SetModelMatrix(modelMatrix);
-	sprite.Draw(program, index);
+	sprite.Draw(program, index, size);
 }
 
 void Entity::Update(float elasped) {
@@ -50,12 +50,12 @@ bool Entity::collidesWith(Entity& entity) {
 bool Entity::collisionX(Entity& entity, float pos) {
 	if (collidesWith(entity)) {
 		if (velocity.x < 0.0f) {
-			float penetration = fabs(pos - (position.x - size.x / 2));
+			float penetration = fabs((position.x - size.x / 2) - pos);
 			position.x += penetration;
 			collidedLeft = true;
 		}
 		else if (velocity.x > 0) {
-			float penetration = fabs(pos - (position.x - size.x / 2));
+			float penetration = fabs((position.x + size.x / 2) - pos);
 			position.x -= penetration;
 			collidedRight = true;
 		}
@@ -73,7 +73,7 @@ bool Entity::collisionY(Entity& entity, float pos) {
 			collidedBottom = true;
 		}
 		else if (velocity.y > 0) {
-			float penetration = fabs(pos - (position.y - size.y / 2));
+			float penetration = fabs(pos - (position.y + size.y / 2));
 			position.y -= penetration;
 			collidedTop = true;
 		}

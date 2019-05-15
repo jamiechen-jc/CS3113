@@ -63,10 +63,13 @@ const int moveAnimation[] = { 8, 9, 10, 11, 12, 13 };
 const int jumpAnimation[] = { 16, 16, 16, 16, 17, 17, 17, 17 };
 const int fallAnimation[] = { 22, 23 };
 const int attackAnimation[] = { 44, 45, 46, 47, 48, 49, 50, 51, 52 };
-const int numFrames[] = { 4, 6, 10, 2, 9 };
+
+const int idleEnemyAnimation[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 };
+
+const int numFrames[] = { 4, 6, 10, 2, 9, 12 };
 float animationElapsed = 0.0f;
-float framesPerSecond[] = { 5.0f , 5.0f, 5.0f, 5.0f, 5.0f };
-int currentIndex[] = { 0, 0, 0, 0, 0 };
+float framesPerSecond[] = { 5.0f , 5.0f, 5.0f, 5.0f, 5.0f, 5.0f };
+int currentIndex[] = { 0, 0, 0, 0, 0, 0 };
 
 float hungerTimer = 0.0f;
 float starvationTimer = 0.0f;
@@ -85,7 +88,6 @@ unsigned int** mapData;
 unsigned int** backgroundData[BACKGROUND_LAYERS];
 int currentBackgroundLayer = 0;
 Entity* tiles[LEVEL_HEIGHT][LEVEL_WIDTH];
-//Entity dungeonTiles[DUNGEON_HEIGHT][DUNGEON_WIDTH];
 
 Mix_Music *menu_music;
 Mix_Music *game_music;
@@ -107,6 +109,7 @@ void placeEntity(string type, float x, float y) {
 	else if (type == "Enemy") {
 		Entity* enemy = new Entity(ENTITY_ENEMY, false, enemySprite);
 		enemy->size = glm::vec3(0.5f, 0.5f, 1.0f);
+		enemy->health = 10;
 		enemy->position.x = x;
 		enemy->position.y = y;
 		enemy->isAttacking = true;
@@ -232,6 +235,7 @@ bool readEntityData(ifstream& stream) {
 void readMapData() {
 	currentBackgroundLayer = 0;
 	string filepath = "";
+	
 	if (currentLevel == 0)
 		filepath = RESOURCE_FOLDER"levels/HomeLevel.txt";
 	else if (currentLevel == 1)
@@ -337,7 +341,9 @@ void drawTileMap(ShaderProgram& program, int tileMapTexture) {
 }
 
 void drawUI(ShaderProgram& program, int UITexture) {
+
 	// Drawing health bar
+
 	modelMatrix = glm::mat4(1.0f);
 	modelMatrix = glm::translate(modelMatrix, state.player->position);
 	modelMatrix = glm::translate(modelMatrix, glm::vec3(-5.0f, -3.5f, 1.0f));
@@ -346,7 +352,7 @@ void drawUI(ShaderProgram& program, int UITexture) {
 	
 	glBindTexture(GL_TEXTURE_2D, UITexture);
 	
-	float index = 12 - (state.player->health / 25.0f) * 3;
+	float index = 12 - (state.player->health / 25) * 3;
 
 	float u = (float)(((int)index) % 3) / 3;
 	float v = (float)(((int)index) / 3) / 29;
@@ -393,7 +399,7 @@ void drawUI(ShaderProgram& program, int UITexture) {
 
 	glBindTexture(GL_TEXTURE_2D, UITexture);
 
-	index = 66 - (state.player->hunger / 25.0f) * 3;
+	index = 66 - (state.player->hunger / 25) * 3;
 
 	u = (float)(((int)index) % 3) / (float)3;
 	v = (float)(((int)index) / 3) / (float)29;
@@ -418,7 +424,7 @@ void drawUI(ShaderProgram& program, int UITexture) {
 	glDisableVertexAttribArray(program.positionAttribute);
 	glDisableVertexAttribArray(program.texCoordAttribute);
 
-	// Drawing other stuff
+	// Drawing other UI elements
 	modelMatrix = glm::mat4(1.0f);
 	modelMatrix = glm::translate(modelMatrix, state.player->position);
 	modelMatrix = glm::translate(modelMatrix, glm::vec3(-1.0f, -3.5f, 1.0f));
@@ -626,7 +632,8 @@ void RenderGameLevel(GameState& state) {
 	texturedProgram.SetViewMatrix(viewMatrix);
 	
 	for (int i = 0; i < state.enemies.size(); ++i) {
-		state.enemies[i]->Draw(texturedProgram, 0);
+		if (state.enemies[i]->health)
+			state.enemies[i]->Draw(texturedProgram, idleEnemyAnimation[currentIndex[5]]);
 	}
 
 	drawUI(texturedProgram, UITexture);
@@ -678,53 +685,65 @@ void UpdateGameLevel(GameState& state, float elapsed) {
 	}
 
 	for (int i = 0; i < state.enemies.size(); ++i) {
-		if (fabs(state.player->position.x - state.enemies[i]->position.x) < 2.0f && fabs(state.player->position.y - state.enemies[i]->position.y) < 2.0f) {
-			if (state.player->position.x > state.enemies[i]->position.x)
-				state.enemies[i]->acceleration.x = -0.75f;
-			else if (state.player->position.x < state.enemies[i]->position.x)
-				state.enemies[i]->acceleration.x = 0.75f;
-		}
-		else if (fabs(state.player->position.x - state.enemies[i]->position.x) > 5.0f && fabs(state.player->position.y - state.enemies[i]->position.y) > 5.0f)
-			state.enemies[i]->acceleration.x = 0.0f;
-		
-		state.enemies[i]->resetCollisionFlags();
-		state.enemies[i]->velocity.x = lerp(state.enemies[i]->velocity.x, 0.0f, elapsed * friction.x);
-		state.enemies[i]->velocity.y = lerp(state.enemies[i]->velocity.y, 0.0f, elapsed * friction.y);
-
-		state.enemies[i]->velocity.x += state.enemies[i]->acceleration.x * elapsed;
-		state.enemies[i]->velocity.y += state.enemies[i]->acceleration.y * elapsed;
-		
-		state.enemies[i]->position.x += state.enemies[i]->velocity.x * elapsed;
-		state.enemies[i]->position.y += state.enemies[i]->velocity.y * elapsed;
-
-		int gridX = -1;
-		int gridY = -1;
-
-		if (state.enemies[i]->velocity.y < 0)
-			worldToTileCoordinates(state.enemies[i]->position.x, state.enemies[i]->position.y - state.enemies[i]->size.y / 2, &gridX, &gridY);
-		else if (state.enemies[i]->velocity.y > 0)
-			worldToTileCoordinates(state.enemies[i]->position.x, state.enemies[i]->position.y + state.enemies[i]->size.y / 2, &gridX, &gridY);
-
-		if (gridY > -1 && gridY < mapHeight) {
-			if (mapData[gridY][gridX] != 0) {
-				if (state.enemies[i]->velocity.y < 0)
-					state.enemies[i]->collisionY(*tiles[gridY][gridX], -TILE_SIZE * gridY);
-				else if (state.enemies[i]->velocity.y > 0)
-					state.enemies[i]->collisionY(*tiles[gridY][gridX], (-TILE_SIZE * gridY) - TILE_SIZE);
+		if (state.enemies[i]->health) {
+			if (fabs(state.player->position.x - state.enemies[i]->position.x) < 2.0f && fabs(state.player->position.y - state.enemies[i]->position.y) < 2.0f) {
+				if (state.player->position.x > state.enemies[i]->position.x)
+					state.enemies[i]->acceleration.x = -0.75f;
+				else if (state.player->position.x < state.enemies[i]->position.x)
+					state.enemies[i]->acceleration.x = 0.75f;
 			}
-		}
+			else if (fabs(state.player->position.x - state.enemies[i]->position.x) > 5.0f && fabs(state.player->position.y - state.enemies[i]->position.y) > 5.0f)
+				state.enemies[i]->acceleration.x = 0.0f;
 
-		if (state.enemies[i]->velocity.x < 0)
-			worldToTileCoordinates(state.enemies[i]->position.x - state.enemies[i]->size.x / 2, state.enemies[i]->position.y, &gridX, &gridY);
-		else if (state.enemies[i]->velocity.x > 0)
-			worldToTileCoordinates(state.enemies[i]->position.x + state.enemies[i]->size.y / 2, state.enemies[i]->position.y, &gridX, &gridY);
+			state.enemies[i]->resetCollisionFlags();
+			state.enemies[i]->velocity.x = lerp(state.enemies[i]->velocity.x, 0.0f, elapsed * friction.x);
+			state.enemies[i]->velocity.y = lerp(state.enemies[i]->velocity.y, 0.0f, elapsed * friction.y);
 
-		if (gridX > -1 && gridX < mapWidth) {
-			if (mapData[gridY][gridX] != 0) {
-				if (state.enemies[i]->velocity.x < 0)
-					state.enemies[i]->collisionX(*tiles[gridY][gridX], (TILE_SIZE * gridX) + TILE_SIZE);
-				else if (state.enemies[i]->velocity.x > 0)
-					state.enemies[i]->collisionX(*tiles[gridY][gridX], TILE_SIZE * gridX);
+			state.enemies[i]->velocity.x += state.enemies[i]->acceleration.x * elapsed;
+			state.enemies[i]->velocity.y += state.enemies[i]->acceleration.y * elapsed;
+
+			state.enemies[i]->position.x += state.enemies[i]->velocity.x * elapsed;
+			state.enemies[i]->position.y += state.enemies[i]->velocity.y * elapsed;
+
+			int gridX = -1;
+			int gridY = -1;
+			
+			if (state.enemies[i]->velocity.y < 0)
+				worldToTileCoordinates(state.enemies[i]->position.x, state.enemies[i]->position.y - state.enemies[i]->size.y / 2, &gridX, &gridY);
+			else if (state.enemies[i]->velocity.y > 0)
+				worldToTileCoordinates(state.enemies[i]->position.x, state.enemies[i]->position.y + state.enemies[i]->size.y / 2, &gridX, &gridY);
+
+			if (gridY > -1 && gridY < mapHeight) {
+				if (mapData[gridY][gridX] != 0) {
+					if (state.enemies[i]->velocity.y < 0)
+						state.enemies[i]->collisionY(*tiles[gridY][gridX], -TILE_SIZE * gridY);
+					else if (state.enemies[i]->velocity.y > 0)
+						state.enemies[i]->collisionY(*tiles[gridY][gridX], (-TILE_SIZE * gridY) - TILE_SIZE);
+				}
+			}
+
+			if (state.enemies[i]->velocity.x < 0)
+				worldToTileCoordinates(state.enemies[i]->position.x - state.enemies[i]->size.x / 2, state.enemies[i]->position.y, &gridX, &gridY);
+			else if (state.enemies[i]->velocity.x > 0)
+				worldToTileCoordinates(state.enemies[i]->position.x + state.enemies[i]->size.y / 2, state.enemies[i]->position.y, &gridX, &gridY);
+
+			if (gridX > -1 && gridX < mapWidth) {
+				if (mapData[gridY][gridX] != 0) {
+					if (state.enemies[i]->velocity.x < 0)
+						state.enemies[i]->collisionX(*tiles[gridY][gridX], (TILE_SIZE * gridX) + TILE_SIZE);
+					else if (state.enemies[i]->velocity.x > 0)
+						state.enemies[i]->collisionX(*tiles[gridY][gridX], TILE_SIZE * gridX);
+				}
+			}
+
+			if (state.player->collidesWith(*state.enemies[i])) {
+				if (state.player->isAttacking) {
+					state.enemies[i]->health = 0;
+					state.player->gold += 5;
+				}
+				else {
+					//state.player->health -= 10;
+				}
 			}
 		}
 	}
@@ -736,8 +755,8 @@ void UpdateGameLevel(GameState& state, float elapsed) {
 	}
 	if (state.player->hunger == 0) {
 		starvationTimer += elapsed;
-		if (starvationTimer > 5.0f) {
-			state.player->health--;
+		if (starvationTimer > 3.0f) {
+			state.player->health -= 25;
 			starvationTimer = 0.0f;
 		}
 	}
@@ -838,6 +857,9 @@ void ProcessGameLevelInput(GameState& state) {
 				if (state.player->hunger > 100)
 					state.player->hunger = 100;
 				state.player->food--;
+			}
+			if (event.key.keysym.scancode == SDL_SCANCODE_DELETE && state.player->hunger) {
+				state.player->hunger -= 5;
 			}
 			if (event.key.keysym.scancode == SDL_SCANCODE_SPACE && state.player->collidedBottom) {
 				state.player->velocity.y = 2.0f;
@@ -1029,7 +1051,7 @@ int main(int argc, char *argv[])
 		animationElapsed += elapsed;
 
 		if (animationElapsed > 1.0f / framesPerSecond[0]) {
-			for (int i = 0; i < 5; ++i) {
+			for (int i = 0; i < 6; ++i) {
 				currentIndex[i]++;
 				animationElapsed = 0.0;
 				if (currentIndex[i] > numFrames[i] - 1)

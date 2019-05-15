@@ -1,5 +1,7 @@
 ﻿  main.cpp
-c:\users\jc769\documents\github\cs3113\final project\nyucodebase\main.cpp(628): warning C4018: '<': signed/unsigned mismatch
-c:\users\jc769\documents\github\cs3113\final project\nyucodebase\main.cpp(680): warning C4018: '<': signed/unsigned mismatch
-c:\users\jc769\documents\github\cs3113\final project\nyucodebase\main.cpp(872): warning C4018: '<': signed/unsigned mismatch
+c:\users\jc769\documents\github\cs3113\final project\nyucodebase\main.cpp(355): warning C4244: 'initializing': conversion from 'int' to 'float', possible loss of data
+c:\users\jc769\documents\github\cs3113\final project\nyucodebase\main.cpp(402): warning C4244: '=': conversion from 'int' to 'float', possible loss of data
+c:\users\jc769\documents\github\cs3113\final project\nyucodebase\main.cpp(634): warning C4018: '<': signed/unsigned mismatch
+c:\users\jc769\documents\github\cs3113\final project\nyucodebase\main.cpp(687): warning C4018: '<': signed/unsigned mismatch
+c:\users\jc769\documents\github\cs3113\final project\nyucodebase\main.cpp(894): warning C4018: '<': signed/unsigned mismatch
   NYUCodebase.vcxproj -> C:\Users\jc769\Documents\GitHub\CS3113\Final Project\Debug\NYUCodebase.exe

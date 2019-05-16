@@ -1,1 +1,1 @@
-Homework #2: Pong
+Homework #3: Space Invaders
